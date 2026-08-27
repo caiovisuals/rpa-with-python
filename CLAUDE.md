@@ -8,8 +8,9 @@ Ele deriva da seção 17 de [`docs/PLANEJAMENTO.md`](docs/PLANEJAMENTO.md).
 Sistema de emissão de **Recibo de Pagamento Autônomo** para uma empresa que
 contrata prestadores sem vínculo. Lida com **dados pessoais e valores
 financeiros reais**. Estado atual: Fase 1 (fundação) e Fase 3 (domínio puro)
-concluídas; motor de cálculo bloqueado até a homologação fiscal; modelo de
-dados retido pela ampliação de escopo para funcionários CLT.
+concluídas. O sistema opera em **modo simulação** enquanto a homologação fiscal
+não existir. Escopo ampliado para incluir folha CLT, a ser construída **depois**
+do RPA (ADR-0005).
 
 Antes de começar qualquer tarefa, ler [`docs/decisoes.md`](docs/decisoes.md):
 ele registra quais hipóteses do planejamento já viraram requisito e prevalece
@@ -26,7 +27,12 @@ homologadas por contador (ver `docs/parametros-fiscais.md`).
 
 Fixture de teste que não veio da homologação é marcada explicitamente como
 fictícia. Enquanto `docs/parametros-fiscais.md` estiver incompleto, o sistema
-não emite recibo definitivo.
+não emite recibo definitivo — opera em simulação (ADR-0004).
+
+**Parâmetro provisório não é exceção a esta regra.** Provisório é dado carregado
+por um administrador, com registro de quem carregou; nunca constante em Python.
+A diferença é toda: o primeiro é visível, rastreável e barra a emissão; o
+segundo se esconde na lógica e ninguém lembra que estava lá.
 
 ## Processo
 
@@ -42,7 +48,9 @@ não emite recibo definitivo.
 6. **Nunca ignorar, silenciar ou contornar erro.** Nada de `except: pass`,
    `# type: ignore` sem justificativa escrita, ou teste marcado como skip para
    ficar verde.
-7. **Não criar abstração antes do segundo caso de uso real.**
+7. **Não criar abstração antes do segundo caso de uso real.** Caso de uso
+   *previsto* não conta — folha CLT está no roadmap, e mesmo assim não se cria
+   `Beneficiario` genérico hoje (ADR-0005).
 8. **Nenhuma dependência nova sem justificativa** — problema que resolve,
    alternativa considerada, custo de manutenção — registrada em ADR.
 9. **Documentação junto com a mudança**, não depois.

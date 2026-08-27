@@ -25,3 +25,7 @@ class InvalidTransitionError(DomainError):
 
 class ReasonRequiredError(DomainError):
     """A transição exige justificativa e nenhuma foi informada."""
+
+
+class NotHomologatedError(DomainError):
+    """Operação exige parâmetros homologados e algum deles é provisório."""

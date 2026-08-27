@@ -1,13 +1,20 @@
 # Planejamento — Sistema de RPA (Recibo de Pagamento Autônomo)
 
-> **Status:** Fases 1 e 3 concluídas. Fase 2 **retida** pela ampliação de escopo (D1).
+> **Status:** Fases 1 e 3 concluídas. Fase 2 em andamento.
 >
 > **Este documento tem uma emenda.** As decisões D1, D2, D3 e D9 foram respondidas
 > em 2026-08-27 e estão registradas em [`decisoes.md`](decisoes.md), que prevalece
 > sobre as hipóteses da seção 0.2 onde houver conflito. Em especial:
-> a hipótese **H01 caiu** — folha CLT entrou no escopo — e a **H09 foi
-> substituída**: a janela de correção fecha na entrega ao autônomo, não na
-> emissão (ver [ADR-0003](adr/0003-imutabilidade-do-recibo-emitido.md)).
+> a hipótese **H01 caiu** — folha CLT entrou no escopo, a ser construída depois
+> do RPA ([ADR-0005](adr/0005-rpa-e-folha-clt-o-que-e-compartilhado.md)); a
+> **H09 foi substituída** — a janela de correção fecha na entrega ao autônomo,
+> não na emissão ([ADR-0003](adr/0003-imutabilidade-do-recibo-emitido.md)); e a
+> **Fase 4 deixou de estar bloqueada** — o sistema opera em modo simulação
+> enquanto a homologação fiscal não existir
+> ([ADR-0004](adr/0004-modo-simulacao-sem-homologacao.md)).
+>
+> **Este documento cobre apenas o RPA.** A folha CLT exigirá uma segunda rodada
+> de descoberta, com requisitos, backlog e homologação fiscal próprios.
 > **Data:** 2026-08-27
 > **Regra mestra deste documento:** nenhuma regra tributária foi inventada. Toda alíquota, faixa,
 > teto, dedução ou ordem de cálculo aparece como **parâmetro a preencher** ou **regra a validar**,
@@ -681,7 +688,7 @@ Idempotência: `POST /issue` aceita `Idempotency-Key` para não emitir dois reci
 | Fase | Objetivo | Tarefas | Dependências | Critério de conclusão |
 |---|---|---|---|---|
 | **F0 — Discovery** | Fechar escopo e requisitos. | Responder às perguntas 5–10; confirmar/corrigir H01–H12; aprovar este documento. | — | Documento aprovado; hipóteses viraram requisitos ou foram descartadas. |
-| **F0.5 — Homologação fiscal** | Eliminar RV01–RV11. | Levantar fontes oficiais; montar `docs/parametros-fiscais.md`; obter aceite do contador; produzir **casos de teste homologados**. | F0 | Todo RV respondido com fonte + aceite; ≥ 20 casos de teste aprovados. **Roda em paralelo a F1–F3.** |
+| **F0.5 — Homologação fiscal** | Eliminar RV01–RV11. Não bloqueia mais as demais fases: sem ela o sistema opera em simulação (ADR-0004). | Levantar fontes oficiais; montar `docs/parametros-fiscais.md`; obter aceite do contador; produzir **casos de teste homologados**. | F0 | Todo RV respondido com fonte + aceite; ≥ 20 casos de teste aprovados. **Roda em paralelo a F1–F3.** |
 | **F1 — Fundação** | Projeto executável e disciplinado. | Repo, `pyproject`, ruff/mypy, pytest, Docker + compose, config por env, logging estruturado, CI, `CLAUDE.md`, ADR-0001. | F0 | `docker compose up` sobe; CI verde num teste trivial. |
 | **F2 — Banco e modelo** | Schema fiel à seção 8. | Models SQLAlchemy, Alembic inicial, constraints e índices, repositórios base, seed de dev, testes de integração. | F1 | Migrations sobem e revertem; constraints testadas. |
 | **F3 — Domínio** | Núcleo puro. | Value objects (CPF/CNPJ/Money/Competência), máquina de estados, invariantes, contrato de regra de cálculo, teste de arquitetura. | F1 | Domínio 100% testado, zero import de framework. |

@@ -10,19 +10,19 @@ para uma empresa que contrata prestadores de serviço sem vínculo empregatício
 | F0 — Discovery | Planejamento escrito; 4 de 12 decisões respondidas ([`decisoes.md`](docs/decisoes.md)) |
 | F0.5 — Homologação fiscal | **Não iniciada.** Bloqueia o motor de cálculo |
 | F1 — Fundação | Concluída |
-| F2 — Banco | **Retida** pela ampliação de escopo para funcionários CLT (D1) |
+| F2 — Banco | Próxima. Destravada pela definição do escopo CLT |
 | F3 — Domínio puro | Concluída |
-| F4 — Motor de cálculo | **Bloqueada pela homologação fiscal** |
+| F4 — Motor de cálculo | Destravada em **modo simulação** (ADR-0004) |
 
 O que já existe é o **domínio puro**: tipos de valor, arredondamento
 parametrizável, máquina de estados do recibo e invariantes. A camada web, o
 banco e a geração de PDF ainda não existem.
 
-**Ampliação de escopo em aberto:** ficou definido que o sistema deve atender
-também funcionários CLT, além de autônomos. Folha de pagamento é outro domínio
-— holerite, férias, 13º, rescisão, eSocial — e o alcance exato ainda está sendo
-definido. Por isso o modelo de dados está retido: ver
-[`docs/decisoes.md`](docs/decisoes.md).
+**Escopo ampliado:** o sistema atenderá também funcionários CLT, com cálculo de
+folha e emissão de holerite — **sem** férias, 13º, rescisão e eSocial. A ordem
+definida é **RPA primeiro, até produção; CLT depois**, como módulo aditivo. Ver
+[`docs/decisoes.md`](docs/decisoes.md) e
+[ADR-0005](docs/adr/0005-rpa-e-folha-clt-o-que-e-compartilhado.md).
 
 ## Aviso sobre regras tributárias
 
@@ -32,8 +32,13 @@ tabelas parametrizadas por vigência, preenchidas a partir de fonte oficial e
 homologadas por profissional de contabilidade.
 
 O documento [`docs/parametros-fiscais.md`](docs/parametros-fiscais.md) está
-**vazio de propósito**. Enquanto ele não for preenchido e homologado, o motor de
-cálculo não pode ser implementado e o sistema não emite recibo definitivo.
+**vazio de propósito**.
+
+Enquanto ele não for preenchido e homologado, o sistema opera em **modo
+simulação**: parâmetros podem ser carregados como provisórios e o cálculo roda,
+mas o documento sai com marca d'água e **não pode virar recibo definitivo**. A
+trava é estrutural, em `app/domain/calculation/approval.py`. Ver
+[ADR-0004](docs/adr/0004-modo-simulacao-sem-homologacao.md).
 
 ## Como rodar
 
@@ -62,6 +67,8 @@ app/
 └── domain/          NÚCLEO PURO — sem framework, sem ORM, sem I/O
     ├── errors.py            exceções do domínio
     ├── rounding.py          arredondamento; nenhuma política padrão
+    ├── calculation/
+    │   └── approval.py      homologação e modo simulação
     ├── receipt/
     │   ├── status.py        máquina de estados do RPA
     │   └── rules.py         invariantes (RN02, RN03, RN08)
