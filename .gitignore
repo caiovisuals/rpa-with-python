@@ -1,0 +1,30 @@
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+htmlcov/
+coverage.xml
+
+# NUNCA versionar segredos. Ver docs/PLANEJAMENTO.md, seção 10.
+.env
+.env.*
+!.env.example
+
+# Documentos gerados e dados locais
+storage/
+*.pdf
+*.sqlite3
+*.db
+
+.DS_Store
+.idea/
+.vscode/
