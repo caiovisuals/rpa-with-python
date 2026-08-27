@@ -1,6 +1,13 @@
 # Planejamento — Sistema de RPA (Recibo de Pagamento Autônomo)
 
-> **Status:** Fase 0 — Discovery. Nenhum código foi escrito.
+> **Status:** Fases 1 e 3 concluídas. Fase 2 **retida** pela ampliação de escopo (D1).
+>
+> **Este documento tem uma emenda.** As decisões D1, D2, D3 e D9 foram respondidas
+> em 2026-08-27 e estão registradas em [`decisoes.md`](decisoes.md), que prevalece
+> sobre as hipóteses da seção 0.2 onde houver conflito. Em especial:
+> a hipótese **H01 caiu** — folha CLT entrou no escopo — e a **H09 foi
+> substituída**: a janela de correção fecha na entrega ao autônomo, não na
+> emissão (ver [ADR-0003](adr/0003-imutabilidade-do-recibo-emitido.md)).
 > **Data:** 2026-08-27
 > **Regra mestra deste documento:** nenhuma regra tributária foi inventada. Toda alíquota, faixa,
 > teto, dedução ou ordem de cálculo aparece como **parâmetro a preencher** ou **regra a validar**,
@@ -87,7 +94,11 @@ DESCARTADO                                            EM_REVISAO
                                                        |        |
                                        revisor devolve |        | revisor confirma
                                                        v        v
-                                                  RASCUNHO    EMITIDO  (imutável, numerado, PDF gerado)
+                                                  RASCUNHO    EMITIDO  (numerado, PDF gerado)
+                                                     ^            |
+                          retificação com motivo     |            | operador marca a entrega
+                          (número preservado)  ------+            v
+                                                              ENTREGUE  (imutável)
                                                                   |
                                                     +-------------+-------------+
                                                     v                           v
@@ -95,6 +106,10 @@ DESCARTADO                                            EM_REVISAO
                                                                                 |
                                                                     (opcional) SUBSTITUIDO_POR -> novo RPA
 ```
+
+> Emenda de 2026-08-27 (decisão D9): o estado `ENTREGUE` foi inserido entre a
+> emissão e o fim do fluxo. Enquanto o recibo não é entregue, ele pode voltar
+> para rascunho por retificação. Ver [ADR-0003](adr/0003-imutabilidade-do-recibo-emitido.md).
 
 **Não-objetivos declarados (MVP):** folha de pagamento CLT, emissão de NFS-e, integração com
 eSocial/DIRF, portal do autônomo, app mobile, assinatura digital ICP-Brasil, cobrança/SaaS.
@@ -1001,6 +1016,9 @@ Estas regras vão para o `CLAUDE.md` na raiz do repositório.
 ---
 
 ## 19. Decisões pendentes — preciso da sua resposta
+
+> **As respostas recebidas estão em [`decisoes.md`](decisoes.md).** A tabela
+> abaixo é a lista original; onde houver divergência, vale o registro.
 
 | # | Pergunta | Hipótese atual | Por que trava |
 |---|---|---|---|

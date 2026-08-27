@@ -12,15 +12,18 @@ import pytest
 from app.domain.errors import InvalidTransitionError, ReasonRequiredError
 from app.domain.receipt.status import (
     IMMUTABLE_STATUSES,
+    NUMBERED_STATUSES,
     TERMINAL_STATUSES,
     TRANSITIONS,
     ReceiptStatus,
     allowed_targets,
     assert_editable,
     assert_transition,
+    can_be_retified,
     can_transition,
     find_transition,
     is_editable,
+    is_immutable,
     is_terminal,
 )
 
@@ -54,10 +57,27 @@ class TestRegrasDeFluxo:
         with pytest.raises(InvalidTransitionError):
             assert_transition(ReceiptStatus.RASCUNHO, ReceiptStatus.EMITIDO)
 
-    def test_emitido_nao_volta_para_rascunho(self):
-        """RN09: recibo emitido é imutável."""
-        with pytest.raises(InvalidTransitionError):
+    def test_emitido_volta_para_rascunho_por_retificacao(self):
+        """A janela de correção fica aberta enquanto o recibo não foi entregue."""
+        transicao = assert_transition(
+            ReceiptStatus.EMITIDO, ReceiptStatus.RASCUNHO, reason="valor bruto errado"
+        )
+        assert transicao.requires_reason
+
+    def test_retificacao_de_emitido_exige_justificativa(self):
+        with pytest.raises(ReasonRequiredError):
             assert_transition(ReceiptStatus.EMITIDO, ReceiptStatus.RASCUNHO)
+
+    def test_entregue_nao_volta_para_rascunho(self):
+        """RN09: entregue ao autônomo, o recibo é imutável."""
+        with pytest.raises(InvalidTransitionError):
+            assert_transition(
+                ReceiptStatus.ENTREGUE, ReceiptStatus.RASCUNHO, reason="qualquer motivo"
+            )
+
+    def test_entrega_e_o_ponto_sem_volta(self):
+        assert can_be_retified(ReceiptStatus.EMITIDO)
+        assert not can_be_retified(ReceiptStatus.ENTREGUE)
 
     def test_nenhum_estado_transiciona_para_si_mesmo(self):
         for status in ReceiptStatus:
@@ -117,18 +137,53 @@ class TestEdicao:
         "status", [s for s in ReceiptStatus if s is not ReceiptStatus.RASCUNHO]
     )
     def test_assert_editable_barra_os_demais(self, status):
-        with pytest.raises(InvalidTransitionError, match="não pode ser alterado"):
+        with pytest.raises(InvalidTransitionError):
             assert_editable(status)
 
-    def test_estados_imutaveis_nao_sao_editaveis(self):
+    @pytest.mark.parametrize("status", [ReceiptStatus.EM_REVISAO, ReceiptStatus.EMITIDO])
+    def test_estado_retificavel_orienta_a_devolver_para_rascunho(self, status):
+        with pytest.raises(InvalidTransitionError, match="Devolva-o para rascunho"):
+            assert_editable(status)
+
+    @pytest.mark.parametrize("status", sorted(IMMUTABLE_STATUSES, key=str))
+    def test_estado_imutavel_orienta_a_emitir_substitutivo(self, status):
+        with pytest.raises(InvalidTransitionError, match="substitutivo"):
+            assert_editable(status)
+
+    def test_estados_imutaveis_nao_sao_editaveis_nem_retificaveis(self):
         for status in IMMUTABLE_STATUSES:
             assert not is_editable(status)
+            assert not can_be_retified(status)
+            assert is_immutable(status)
+
+    def test_emitido_nao_e_imutavel_ainda(self):
+        """É o estado que a decisão D9 abriu: numerado, mas ainda corrigível."""
+        assert not is_immutable(ReceiptStatus.EMITIDO)
+        assert can_be_retified(ReceiptStatus.EMITIDO)
+
+
+class TestNumeracao:
+    def test_retificacao_nao_devolve_o_numero(self):
+        """RN10: número atribuído não volta para a sequência, senão abre lacuna."""
+        assert ReceiptStatus.EMITIDO in NUMBERED_STATUSES
+
+    def test_rascunho_e_descartado_nao_consomem_numero(self):
+        assert ReceiptStatus.RASCUNHO not in NUMBERED_STATUSES
+        assert ReceiptStatus.EM_REVISAO not in NUMBERED_STATUSES
+        assert ReceiptStatus.DESCARTADO not in NUMBERED_STATUSES
+
+    def test_todo_estado_imutavel_ja_foi_numerado(self):
+        assert IMMUTABLE_STATUSES <= NUMBERED_STATUSES
 
 
 class TestEscopoDeclarado:
     def test_pago_nao_pode_ser_cancelado(self):
         """Decisão de escopo consciente: não foi confirmada e não foi inventada."""
         assert not can_transition(ReceiptStatus.PAGO, ReceiptStatus.CANCELADO)
+
+    def test_pagamento_so_e_registrado_depois_da_entrega(self):
+        assert not can_transition(ReceiptStatus.EMITIDO, ReceiptStatus.PAGO)
+        assert can_transition(ReceiptStatus.ENTREGUE, ReceiptStatus.PAGO)
 
     def test_toda_transicao_tem_descricao(self):
         for transicao in TRANSITIONS:

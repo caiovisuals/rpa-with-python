@@ -7,16 +7,22 @@ para uma empresa que contrata prestadores de serviço sem vínculo empregatício
 
 | Fase | Situação |
 |---|---|
-| F0 — Discovery | Planejamento escrito; **12 decisões ainda em aberto** (seção 19) |
+| F0 — Discovery | Planejamento escrito; 4 de 12 decisões respondidas ([`decisoes.md`](docs/decisoes.md)) |
 | F0.5 — Homologação fiscal | **Não iniciada.** Bloqueia o motor de cálculo |
 | F1 — Fundação | Concluída |
-| F2 — Banco | Não iniciada (depende da decisão D2) |
+| F2 — Banco | **Retida** pela ampliação de escopo para funcionários CLT (D1) |
 | F3 — Domínio puro | Concluída |
 | F4 — Motor de cálculo | **Bloqueada pela homologação fiscal** |
 
 O que já existe é o **domínio puro**: tipos de valor, arredondamento
-parametrizável, máquina de estados do recibo e invariantes. Nada de web, banco
-ou PDF ainda — essas escolhas dependem de decisões pendentes.
+parametrizável, máquina de estados do recibo e invariantes. A camada web, o
+banco e a geração de PDF ainda não existem.
+
+**Ampliação de escopo em aberto:** ficou definido que o sistema deve atender
+também funcionários CLT, além de autônomos. Folha de pagamento é outro domínio
+— holerite, férias, 13º, rescisão, eSocial — e o alcance exato ainda está sendo
+definido. Por isso o modelo de dados está retido: ver
+[`docs/decisoes.md`](docs/decisoes.md).
 
 ## Aviso sobre regras tributárias
 
@@ -40,6 +46,13 @@ pytest --cov=app --cov-report=term-missing
 ```
 
 Os quatro precisam passar antes de qualquer coisa ser considerada pronta.
+
+Com Docker, para subir o banco de desenvolvimento:
+
+```bash
+cp .env.example .env    # preencha POSTGRES_PASSWORD
+docker compose up
+```
 
 ## Estrutura
 
@@ -69,6 +82,7 @@ framework, ORM, I/O ou ler o relógio dentro de `app/domain/`.
 ## Documentação
 
 - [`docs/PLANEJAMENTO.md`](docs/PLANEJAMENTO.md) — planejamento completo
+- [`docs/decisoes.md`](docs/decisoes.md) — registro das decisões de escopo
 - [`docs/parametros-fiscais.md`](docs/parametros-fiscais.md) — homologação fiscal
 - [`docs/adr/`](docs/adr/) — decisões de arquitetura
 - [`CLAUDE.md`](CLAUDE.md) — regras de trabalho no repositório

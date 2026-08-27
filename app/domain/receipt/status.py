@@ -1,8 +1,12 @@
 """Máquina de estados do RPA.
 
-Implementa a regra RN05 (ordem obrigatória rascunho → revisão → emitido) e a
-RN09 (recibo emitido é imutável). Toda transição que não estiver declarada em
-:data:`TRANSITIONS` é proibida — a lista é a especificação, não uma sugestão.
+Implementa a regra RN05 (ordem obrigatória rascunho -> revisão -> emitido) e a
+RN09 (imutabilidade). A janela de correção fecha na **entrega ao autônomo**, não
+na emissão: enquanto o recibo não saiu das mãos da empresa, ele pode voltar para
+rascunho por retificação, preservando o número. Ver ADR-0003.
+
+Toda transição que não estiver declarada em :data:`TRANSITIONS` é proibida — a
+lista é a especificação, não uma sugestão.
 """
 
 from __future__ import annotations
@@ -23,7 +27,14 @@ class ReceiptStatus(Enum):
     """Conferido pelo operador, aguardando confirmação do revisor."""
 
     EMITIDO = "emitido"
-    """Numerado e imutável. O PDF gerado a partir daqui é o documento oficial."""
+    """Numerado, com documento oficial gerado, **ainda não entregue ao autônomo**.
+
+    É o único estado em que uma correção ainda é possível sem cancelar: o recibo
+    volta para rascunho por retificação, preservando o número já atribuído.
+    """
+
+    ENTREGUE = "entregue"
+    """Entregue ao autônomo. A partir daqui o recibo é imutável (RN09)."""
 
     PAGO = "pago"
     """Pagamento registrado."""
@@ -72,21 +83,54 @@ TRANSITIONS: tuple[Transition, ...] = (
     ),
     Transition(
         ReceiptStatus.EMITIDO,
-        ReceiptStatus.PAGO,
+        ReceiptStatus.RASCUNHO,
+        requires_reason=True,
+        description=(
+            "Retificação antes da entrega. Só é possível enquanto o recibo não foi "
+            "entregue ao autônomo. Preserva o número já atribuído e invalida o "
+            "documento gerado, que precisa ser refeito na reemissão."
+        ),
+    ),
+    Transition(
+        ReceiptStatus.EMITIDO,
+        ReceiptStatus.ENTREGUE,
         requires_reason=False,
-        description="Pagamento registrado.",
+        description=(
+            "Entrega registrada por ação explícita do operador. É o ponto sem volta: "
+            "a partir daqui o recibo é imutável."
+        ),
     ),
     Transition(
         ReceiptStatus.EMITIDO,
         ReceiptStatus.CANCELADO,
         requires_reason=True,
-        description="Cancelamento com motivo obrigatório. Preserva dados e PDF.",
+        description="Cancelamento com motivo obrigatório. Preserva dados e documento.",
+    ),
+    Transition(
+        ReceiptStatus.ENTREGUE,
+        ReceiptStatus.PAGO,
+        requires_reason=False,
+        description="Pagamento registrado.",
+    ),
+    Transition(
+        ReceiptStatus.ENTREGUE,
+        ReceiptStatus.CANCELADO,
+        requires_reason=True,
+        description="Cancelamento com motivo obrigatório. Correção exige substitutivo.",
     ),
 )
-# NOTA DE ESCOPO: não existe transição PAGO -> CANCELADO. O fluxo confirmado
-# (C03) e o diagrama do planejamento não a preveem, e inventá-la seria criar
-# requisito. Se cancelar recibo já pago for necessário, isso é uma decisão de
-# negócio a confirmar antes de virar código.
+# NOTAS DE ESCOPO — decisões conscientes, não esquecimentos:
+#
+# 1. Não existe PAGO -> CANCELADO. O fluxo confirmado não a prevê, e inventá-la
+#    seria criar requisito.
+# 2. Não existe EMITIDO -> PAGO. O pagamento é registrado depois da entrega,
+#    para que nenhum recibo alcance um estado final sem passar pelo ponto em
+#    que se torna imutável. Se registrar pagamento antes da entrega for
+#    necessário na prática, é decisão de negócio a confirmar.
+# 3. Quem marca a entrega é o operador, por ação explícita. A alternativa seria
+#    inferir a entrega do download ou do envio do PDF; ação explícita foi
+#    preferida por ser auditável e deliberada — baixar o PDF para conferir não
+#    é entregar. A confirmar (ver ADR-0003).
 
 _INDEX: dict[tuple[ReceiptStatus, ReceiptStatus], Transition] = {
     (t.source, t.target): t for t in TRANSITIONS
@@ -97,8 +141,22 @@ TERMINAL_STATUSES = frozenset(
     {ReceiptStatus.PAGO, ReceiptStatus.CANCELADO, ReceiptStatus.DESCARTADO}
 )
 
-#: Estados em que o recibo já é documento oficial e não pode mais ser alterado (RN09).
-IMMUTABLE_STATUSES = frozenset({ReceiptStatus.EMITIDO, ReceiptStatus.PAGO, ReceiptStatus.CANCELADO})
+#: Estados em que o recibo já saiu das mãos da empresa e não pode mais mudar (RN09).
+IMMUTABLE_STATUSES = frozenset(
+    {ReceiptStatus.ENTREGUE, ReceiptStatus.PAGO, ReceiptStatus.CANCELADO}
+)
+
+#: Estados em que o recibo já consumiu um número de série. Um recibo que volta
+#: para rascunho por retificação **mantém** o número: devolvê-lo à sequência
+#: abriria lacuna na numeração (RN10).
+NUMBERED_STATUSES = frozenset(
+    {
+        ReceiptStatus.EMITIDO,
+        ReceiptStatus.ENTREGUE,
+        ReceiptStatus.PAGO,
+        ReceiptStatus.CANCELADO,
+    }
+)
 
 
 def allowed_targets(source: ReceiptStatus) -> frozenset[ReceiptStatus]:
@@ -116,8 +174,26 @@ def can_transition(source: ReceiptStatus, target: ReceiptStatus) -> bool:
 
 
 def is_editable(status: ReceiptStatus) -> bool:
-    """Só o rascunho pode ser editado (RN09, RF16)."""
+    """Só o rascunho aceita edição direta (RF16).
+
+    Um recibo emitido e ainda não entregue não é editado no lugar: ele volta
+    para rascunho por retificação, o que deixa rastro na trilha de auditoria.
+    """
     return status is ReceiptStatus.RASCUNHO
+
+
+def can_be_retified(status: ReceiptStatus) -> bool:
+    """Verdadeiro enquanto ainda dá para corrigir sem cancelar.
+
+    A janela de correção fecha na entrega ao autônomo: depois disso o documento
+    existe fora do sistema e corrigir vira cancelar e emitir substitutivo.
+    """
+    return can_transition(status, ReceiptStatus.RASCUNHO)
+
+
+def is_immutable(status: ReceiptStatus) -> bool:
+    """Verdadeiro quando nada mais no recibo pode mudar (RN09)."""
+    return status in IMMUTABLE_STATUSES
 
 
 def is_terminal(status: ReceiptStatus) -> bool:
@@ -153,8 +229,14 @@ def assert_transition(
 
 def assert_editable(status: ReceiptStatus) -> None:
     """Barra qualquer alteração fora do rascunho (RN09)."""
-    if not is_editable(status):
+    if is_editable(status):
+        return
+    if can_be_retified(status):
         raise InvalidTransitionError(
-            f"recibo em {status.value} não pode ser alterado. "
-            "Recibo emitido é imutável: cancele e emita um substitutivo."
+            f"recibo em {status.value} não é editado diretamente. "
+            "Devolva-o para rascunho, com justificativa, antes de alterar."
         )
+    raise InvalidTransitionError(
+        f"recibo em {status.value} não pode ser alterado. "
+        "A janela de correção fecha na entrega: cancele e emita um substitutivo."
+    )

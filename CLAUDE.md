@@ -8,7 +8,12 @@ Ele deriva da seção 17 de [`docs/PLANEJAMENTO.md`](docs/PLANEJAMENTO.md).
 Sistema de emissão de **Recibo de Pagamento Autônomo** para uma empresa que
 contrata prestadores sem vínculo. Lida com **dados pessoais e valores
 financeiros reais**. Estado atual: Fase 1 (fundação) e Fase 3 (domínio puro)
-concluídas; motor de cálculo bloqueado até a homologação fiscal.
+concluídas; motor de cálculo bloqueado até a homologação fiscal; modelo de
+dados retido pela ampliação de escopo para funcionários CLT.
+
+Antes de começar qualquer tarefa, ler [`docs/decisoes.md`](docs/decisoes.md):
+ele registra quais hipóteses do planejamento já viraram requisito e prevalece
+sobre a seção 0.2 do planejamento.
 
 ## A regra que não se negocia
 
@@ -57,8 +62,11 @@ não emite recibo definitivo.
     problema é o código novo, não o teste.
 14. **Determinismo:** data e hora entram como parâmetro, nunca via
     `date.today()` dentro do domínio.
-15. **Imutabilidade:** nenhum código que altere recibo emitido é aceito, nem
-    "só para corrigir um errinho". Correção é cancelar + emitir substitutivo.
+15. **Imutabilidade:** a janela de correção fecha na **entrega** ao autônomo, não
+    na emissão (ADR-0003). Recibo `ENTREGUE`, `PAGO` ou `CANCELADO` não muda,
+    nem "só para corrigir um errinho" — correção é cancelar + emitir
+    substitutivo. Recibo `EMITIDO` e não entregue volta para rascunho por
+    retificação, com justificativa, preservando o número.
 16. **Migrations:** revisar o `autogenerate` à mão; nunca editar migration já
     aplicada em produção; migration com dados precisa de plano de reversão.
 17. **Segurança:** toda rota nova declara autenticação e papel exigido no mesmo

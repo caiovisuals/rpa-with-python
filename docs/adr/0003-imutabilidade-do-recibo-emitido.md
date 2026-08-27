@@ -1,60 +1,90 @@
-# ADR-0003 — Recibo emitido é imutável
+# ADR-0003 — A janela de correção fecha na entrega, não na emissão
 
-- **Status:** aceito, **sujeito a confirmação (decisão D9)**
-- **Data:** 2026-08-27
+- **Status:** aceito — decisão D9 respondida em 2026-08-27
+- **Substitui:** a versão anterior desta ADR, que assumia imutabilidade a partir da emissão (hipótese H09)
 - **Contexto do backlog:** TASK-042
 
 ## Contexto
 
-O RPA é documento contábil. Depois de emitido e entregue ao autônomo, ele passa
-a existir fora do sistema: impresso, arquivado, enviado ao contador.
+O RPA é documento contábil. Depois de entregue ao autônomo, ele passa a existir
+fora do sistema: impresso, arquivado, enviado ao contador. A partir daí,
+qualquer divergência entre o papel na mão da pessoa e o registro no sistema é um
+problema real.
 
-A decisão D9 do planejamento — se recibo emitido pode ser editado ou apenas
-cancelado e substituído — **ainda não foi confirmada**. Esta ADR registra a
-hipótese H09 adotada e as suas consequências, para que a confirmação (ou a
-correção) seja uma decisão informada.
+A hipótese original (H09) era mais rígida: imutável já na emissão, correção
+apenas por cancelamento e substituição. A resposta à decisão D9 foi diferente:
+**editar é permitido enquanto o recibo não tiver sido entregue ao autônomo.**
+
+O raciocínio da resposta é sólido. Um erro de digitação percebido trinta
+segundos depois de emitir, com o PDF ainda na tela, não justifica um par de
+documentos — cancelado e substitutivo — na contabilidade. O que torna o recibo
+irreversível não é a emissão: é ele sair das mãos da empresa.
 
 ## Decisão
 
-Recibo em estado `EMITIDO` não pode ser alterado. Correção se faz por
-**cancelamento com motivo obrigatório** seguido de **emissão de um recibo
-substitutivo** que referencia o cancelado.
+Um estado a mais entre a emissão e o fim do fluxo:
 
-Implementado em `app/domain/receipt/status.py`:
+```
+EM_REVISAO ──▶ EMITIDO ──▶ ENTREGUE ──▶ PAGO
+                  │            │
+                  │            └──▶ CANCELADO  (motivo obrigatório)
+                  │
+                  ├──▶ RASCUNHO   retificação, motivo obrigatório
+                  └──▶ CANCELADO  (motivo obrigatório)
+```
 
-- não existe transição `EMITIDO -> RASCUNHO`;
-- `is_editable()` devolve verdadeiro apenas para `RASCUNHO`;
-- `assert_editable()` barra qualquer alteração fora do rascunho;
-- o cancelamento exige justificativa não vazia.
+- **`EMITIDO`** — numerado, documento oficial gerado, ainda não entregue.
+  Corrigível: volta para rascunho por **retificação**, com justificativa.
+- **`ENTREGUE`** — registrado por **ação explícita do operador**. Ponto sem
+  volta: a partir daqui vale a imutabilidade integral, e correção é cancelar e
+  emitir substitutivo.
 
-A mesma regra será espelhada por constraint no banco: a aplicação dá a mensagem
-boa, o banco garante que ninguém contorna.
+Três consequências que não são opcionais:
+
+1. **O número é preservado na retificação.** Um recibo que volta para rascunho
+   mantém o número que já consumiu. Devolvê-lo à sequência abriria lacuna na
+   numeração e quebraria a RN10.
+2. **O documento gerado é invalidado.** Retificar torna obsoleto o PDF emitido;
+   a reemissão gera um novo, e o histórico de documentos guarda os dois.
+3. **Retificação exige justificativa.** É a única coisa que separa "corrigi um
+   erro de digitação" de "mudei o valor depois de emitido" na auditoria.
 
 ## Consequências
 
 **A favor**
 
-- O documento entregue e o registro no sistema nunca divergem.
-- A trilha de auditoria fica completa por construção: todo erro corrigido deixa
-  rastro de qual recibo foi cancelado, por quem e por quê.
-- Numeração permanece confiável: número emitido nunca é reaproveitado.
+- Corrigir um erro percebido na hora custa uma retificação, não dois documentos.
+- A auditoria continua completa: toda retificação deixa autor, motivo e horário.
+- A regra fica ancorada em um evento verificável — a entrega — e não em um
+  estado técnico interno.
 
 **Contra**
 
-- Corrigir um erro de digitação exige dois documentos (o cancelado e o novo).
-  Operadores vão achar burocrático no começo.
-- O modelo de dados precisa de auto-referência (`replaces` / `replaced_by`) e de
-  snapshot dos dados na emissão.
+- A imutabilidade agora depende de uma ação humana estar correta. Se ninguém
+  marcar a entrega, o recibo fica corrigível indefinidamente. Mitigação prevista:
+  alerta na listagem para recibos emitidos há muito tempo e não entregues.
+- Um estado a mais na máquina, na interface e no relatório.
 
-## Se a decisão D9 for confirmada em sentido contrário
+## O ponto que ainda precisa de confirmação
 
-Se ficar decidido que recibo emitido pode ser editado, isso **não é ajuste de
-uma regra**: cai o snapshot, cai a auto-referência de substituição, muda a
-trilha de auditoria e muda a garantia do RNF02 (reimpressão fiel). Seria uma
-revisão do modelo de dados inteiro, não uma alteração pontual.
+**Quem marca a entrega, e como.** A escolha implementada é *ação explícita do
+operador*: existe um comando "marcar como entregue", e nada mais dispara a
+transição.
 
-## Nota de escopo registrada em código
+A alternativa seria inferir a entrega de um evento do sistema — baixar o PDF ou
+enviá-lo por e-mail. Foi descartada por ser frágil no sentido perigoso: **baixar
+o PDF para conferir não é entregar**, e um download acidental fecharia a janela
+de correção sem que ninguém tivesse decidido isso. Quando o envio por e-mail
+existir (RF28), ele pode virar um gatilho automático legítimo — aí o sistema
+sabe que o documento saiu.
 
-Não existe transição `PAGO -> CANCELADO`. O fluxo confirmado (C03) não a prevê,
-e criá-la seria inventar requisito. Se cancelar recibo já pago for necessário, é
-decisão de negócio a confirmar antes de virar código.
+## Notas de escopo registradas em código
+
+- Não existe `EMITIDO -> PAGO`: o pagamento é registrado depois da entrega, para
+  que nenhum recibo chegue a um estado final sem passar pelo ponto em que se
+  torna imutável.
+- Não existe `PAGO -> CANCELADO`: o fluxo confirmado não a prevê, e criá-la
+  seria inventar requisito.
+
+Ambas são decisões conscientes, não esquecimentos, e ambas são reversíveis se o
+uso real mostrar que atrapalham.
