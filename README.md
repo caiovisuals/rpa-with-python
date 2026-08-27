@@ -10,13 +10,14 @@ para uma empresa que contrata prestadores de serviço sem vínculo empregatício
 | F0 — Discovery | Planejamento escrito; 4 de 12 decisões respondidas ([`decisoes.md`](docs/decisoes.md)) |
 | F0.5 — Homologação fiscal | **Não iniciada.** Bloqueia o motor de cálculo |
 | F1 — Fundação | Concluída |
-| F2 — Banco | Próxima. Destravada pela definição do escopo CLT |
+| F2 — Banco | Schema, migration e constraints concluídos; repositórios pendentes |
 | F3 — Domínio puro | Concluída |
 | F4 — Motor de cálculo | Destravada em **modo simulação** (ADR-0004) |
 
-O que já existe é o **domínio puro**: tipos de valor, arredondamento
-parametrizável, máquina de estados do recibo e invariantes. A camada web, o
-banco e a geração de PDF ainda não existem.
+O que já existe é o **domínio puro** (tipos de valor, arredondamento
+parametrizável, máquina de estados, invariantes) e o **schema do banco**: 14
+tabelas com constraints e índices, aplicadas por migration reversível. A camada
+web e a geração de PDF ainda não existem.
 
 **Escopo ampliado:** o sistema atenderá também funcionários CLT, com cálculo de
 folha e emissão de holerite — **sem** férias, 13º, rescisão e eSocial. A ordem
@@ -52,11 +53,18 @@ pytest --cov=app --cov-report=term-missing
 
 Os quatro precisam passar antes de qualquer coisa ser considerada pronta.
 
-Com Docker, para subir o banco de desenvolvimento:
+Os testes de integração exigem **PostgreSQL de verdade** — SQLite não tem
+constraint de exclusão, índice parcial nem gatilho, que é justamente o que eles
+verificam. Sem `DATABASE_URL` eles são pulados, com aviso; no CI a variável
+`RPA_REQUIRE_DB=1` transforma isso em falha, para que uma suíte inteira nunca
+desapareça atrás de um build verde.
 
 ```bash
-cp .env.example .env    # preencha POSTGRES_PASSWORD
-docker compose up
+cp .env.example .env              # preencha POSTGRES_PASSWORD
+docker compose up -d db           # sobe o banco
+export DATABASE_URL="postgresql+psycopg://rpa:SENHA@localhost:5432/rpa"
+alembic upgrade head              # aplica o schema
+pytest
 ```
 
 ## Estrutura
@@ -73,8 +81,12 @@ app/
     │   ├── status.py        máquina de estados do RPA
     │   └── rules.py         invariantes (RN02, RN03, RN08)
     └── value_objects/       CPF, CNPJ, Money, Competência
+app/models/          tabelas SQLAlchemy (camada externa)
+app/core/config.py   configuração por ambiente, com falha rápida
+migrations/          Alembic
 tests/
 ├── architecture/    garante o isolamento do domínio
+├── integration/     schema e constraints, contra PostgreSQL real
 └── unit/            unitários e baseados em propriedade
 docs/
 ├── PLANEJAMENTO.md          requisitos, arquitetura, roadmap, backlog

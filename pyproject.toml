@@ -4,11 +4,15 @@ version = "0.1.0"
 description = "Sistema de geração e gerenciamento de Recibo de Pagamento Autônomo (RPA)"
 requires-python = ">=3.11"
 
-# O domínio não tem dependência de runtime — por construção.
-# Ver docs/adr/0001-arquitetura-em-camadas.md e o teste tests/architecture/.
-# Bibliotecas de infraestrutura (web, ORM, PDF) só entram quando a decisão D2
-# for confirmada. Ver docs/PLANEJAMENTO.md, seção 19.
-dependencies = []
+# O **domínio** não tem dependência nenhuma — garantido por
+# tests/architecture/test_domain_purity.py. As dependências abaixo servem à
+# persistência, que é camada externa. Cada uma está justificada em
+# docs/adr/0001-arquitetura-em-camadas.md.
+dependencies = [
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
+    "psycopg[binary]>=3.1",
+]
 
 [project.optional-dependencies]
 dev = [
@@ -30,6 +34,9 @@ include = ["app*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --strict-markers --strict-config"
+# Aviso vira erro: a suíte não passa com SAWarning, DeprecationWarning ou
+# ResourceWarning pendente. É a única forma de não conviver com eles.
+filterwarnings = ["error"]
 markers = [
     "fiscal: caso de cálculo derivado de parâmetro fiscal homologado",
 ]
@@ -66,6 +73,9 @@ select = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+# Migrations carregam SQL literal que não se quebra sem prejudicar a leitura e
+# o diff. O limite de linha é a única regra dispensada — o resto vale.
+"migrations/versions/*.py" = ["E501"]
 
 # ---------------------------------------------------------------- mypy
 [tool.mypy]
@@ -74,6 +84,11 @@ strict = true
 warn_unreachable = true
 disallow_any_explicit = false
 files = ["app", "tests"]
+
+# Migrations são scripts gerados e revisados à mão, não código de aplicação.
+[[tool.mypy.overrides]]
+module = "migrations.*"
+ignore_errors = true
 
 [[tool.mypy.overrides]]
 module = "tests.*"

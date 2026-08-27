@@ -14,8 +14,8 @@ hipótese correspondente.
 | D9 | Recibo emitido pode ser editado? | **Só antes de entregar ao autônomo** | 2026-08-27 | Substitui a hipótese H09. Novo estado `ENTREGUE`; retificação com número preservado. Ver ADR-0003. |
 | D4 | Assinatura manuscrita ou digital? | _pendente_ | — | — |
 | D5 | Integrações no MVP? | _pendente_ | — | — |
-| D6 | Login com papéis distintos? | _pendente_ | — | Implícito na resposta a D2, mas não confirmado formalmente. |
-| D7 | Uma empresa ou várias? | _pendente_ | — | — |
+| D6 | Login com papéis distintos? | _pendente_ | — | Tabela `users` já tem `role` com quatro papéis. **Confirmar antes da Fase 5.** |
+| D7 | Uma empresa ou várias? | _pendente_ | — | `organization_id` existe em todas as tabelas; multi-tenant não está ativado. |
 | D8 | Objetivo: interno, produto ou estudo? | _pendente_ | — | — |
 | D10 | Volume mensal esperado? | _pendente_ | — | — |
 | D11 | Quem homologa RV01–RV11? | **Começar sem homologação, em simulação** | 2026-08-27 | Fase 4 destravada em modo simulação. Parâmetros provisórios calculam, mas não emitem documento oficial. Ver ADR-0004. |

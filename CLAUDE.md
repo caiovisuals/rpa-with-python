@@ -10,7 +10,7 @@ contrata prestadores sem vínculo. Lida com **dados pessoais e valores
 financeiros reais**. Estado atual: Fase 1 (fundação) e Fase 3 (domínio puro)
 concluídas. O sistema opera em **modo simulação** enquanto a homologação fiscal
 não existir. Escopo ampliado para incluir folha CLT, a ser construída **depois**
-do RPA (ADR-0005).
+do RPA (ADR-0005). Fase 2: schema e migration prontos; repositórios pendentes.
 
 Antes de começar qualquer tarefa, ler [`docs/decisoes.md`](docs/decisoes.md):
 ele registra quais hipóteses do planejamento já viraram requisito e prevalece
@@ -92,6 +92,9 @@ ruff check . && ruff format --check .
 mypy
 pytest --cov=app --cov-report=term-missing
 ```
+
+Os testes de integração precisam de PostgreSQL e de `DATABASE_URL`. Sem ela são
+pulados com aviso; no CI, `RPA_REQUIRE_DB=1` transforma o pulo em falha.
 
 Antes de considerar qualquer coisa pronta, os quatro passam.
 

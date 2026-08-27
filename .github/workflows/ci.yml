@@ -12,6 +12,31 @@ concurrency:
 jobs:
   qualidade:
     runs-on: ubuntu-latest
+
+    # Os testes de integração rodam contra PostgreSQL de verdade. SQLite não
+    # serviria: constraint de exclusão, índice parcial e gatilho não existem lá,
+    # e são exatamente o que se quer verificar.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: rpa
+          POSTGRES_PASSWORD: rpa_ci
+          POSTGRES_DB: rpa_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U rpa -d rpa_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql+psycopg://rpa:rpa_ci@localhost:5432/rpa_test
+      # Sem isto, um banco indisponível faria os testes de integração serem
+      # pulados e o build ficaria verde escondendo uma suíte inteira.
+      RPA_REQUIRE_DB: "1"
+
     steps:
       - uses: actions/checkout@v4
 
